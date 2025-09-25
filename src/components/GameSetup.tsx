@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -54,15 +55,21 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
       const history = storage.getHistory();
       const currentPlayerId = selectedPlayerIds[0];
 
-      const relevantGames = history.filter(game => 
-        game.mode === 'Dark Self Challenge' &&
-        game.players.length === 1 &&
-        game.players[0].id === currentPlayerId
-      );
+      let playerWins = 0;
+      let darkSelfWins = 0;
 
-      const playerWins = relevantGames.filter(game => game.winner?.id === currentPlayerId).length;
-      const darkSelfWins = relevantGames.filter(game => game.winner?.id === 'dark-self').length;
-
+      for (const game of history) {
+        if (
+          game.mode === 'Dark Self Challenge' &&
+          game.players.some(p => p.id === currentPlayerId)
+        ) {
+          if (game.winner?.id === currentPlayerId) {
+            playerWins++;
+          } else if (game.winner?.id === 'dark-self') {
+            darkSelfWins++;
+          }
+        }
+      }
       setDarkSelfStats({ playerWins, darkSelfWins });
     } else {
       setDarkSelfStats(null);
@@ -254,5 +261,3 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
     </Card>
   );
 }
-
-    

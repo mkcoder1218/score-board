@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
@@ -50,6 +51,7 @@ export default function DarkSelfChallenge({ settings, onGameEnd, onNewGame }: Da
   const [motivationalMessage, setMotivationalMessage] = useState('');
   const [showDefeatDialog, setShowDefeatDialog] = useState(false);
 
+  const gameEndedRef = useRef(false);
   const player = settings.players[0];
   const endTimeRef = useRef<number | null>(null);
 
@@ -96,7 +98,10 @@ export default function DarkSelfChallenge({ settings, onGameEnd, onNewGame }: Da
   }, [outcome, challengeTime]);
 
   useEffect(() => {
+    if (gameEndedRef.current) return;
+
     if (outcome === 'lost') {
+      gameEndedRef.current = true;
       document.title = `Defeat | ${ORIGINAL_TITLE}`;
       onGameEnd({ winner: { id: 'dark-self', name: 'Dark Self' }, scores: [] });
       showNotification('Dark Self Challenge', 'You ran out of time. The Dark Self has won.');
@@ -110,14 +115,15 @@ export default function DarkSelfChallenge({ settings, onGameEnd, onNewGame }: Da
             setShowDefeatDialog(true);
         });
     } else if (outcome === 'won') {
+        gameEndedRef.current = true;
         document.title = `Victory! | ${ORIGINAL_TITLE}`;
+        onGameEnd({ winner: player, scores: [] });
     }
-  }, [outcome, onGameEnd, player.name, challengeTime]);
+  }, [outcome, onGameEnd, player, challengeTime]);
 
   const handleWin = () => {
     if (outcome) return;
     setOutcome('won');
-    onGameEnd({ winner: player, scores: [] });
   };
   
   const progress = (timeLeft / challengeTime) * 100;
