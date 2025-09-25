@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Switch } from '@/components/ui/switch';
-import { UserPlus, Trash2, Users, Timer as TimerIcon } from 'lucide-react';
+import { UserPlus, Trash2, Users, Timer as TimerIcon, Shield, Moon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const formSchema = z.object({
@@ -32,6 +32,7 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
   const [darkSelfHours, setDarkSelfHours] = useState(0);
   const [darkSelfMinutes, setDarkSelfMinutes] = useState(0);
   const [darkSelfSeconds, setDarkSelfSeconds] = useState(10);
+  const [darkSelfStats, setDarkSelfStats] = useState<{ playerWins: number; darkSelfWins: number } | null>(null);
 
   const { toast } = useToast();
 
@@ -47,6 +48,22 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
       setSelectedPlayerIds(storedPlayers.slice(0, 2).map(p => p.id));
     }
   }, []);
+
+  useEffect(() => {
+    if (gameMode === 'Dark Self Challenge') {
+        const history = storage.getHistory();
+        const challengeHistory = history.filter(g => g.mode === 'Dark Self Challenge');
+        
+        // Assuming the first selected player is the one playing
+        const currentPlayerId = selectedPlayerIds[0];
+        const playerWins = challengeHistory.filter(g => g.winner?.id !== 'dark-self' && g.players.some(p => p.id === currentPlayerId)).length;
+        const darkSelfWins = challengeHistory.filter(g => g.winner?.id === 'dark-self' && g.players.some(p => p.id === currentPlayerId)).length;
+        
+        setDarkSelfStats({ playerWins, darkSelfWins });
+    } else {
+        setDarkSelfStats(null);
+    }
+  }, [gameMode, selectedPlayerIds]);
 
   const handleAddPlayer = (data: { newPlayerName: string }) => {
     const newPlayer: Player = { id: Date.now().toString(), name: data.newPlayerName.trim() };
@@ -170,6 +187,21 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
 
         {gameMode === 'Dark Self Challenge' && (
           <div className="space-y-4 p-4 border rounded-lg bg-secondary/50">
+            {darkSelfStats && selectedPlayerIds.length === 1 && (
+              <div className="p-3 bg-background/50 rounded-lg">
+                  <h4 className="font-semibold text-center mb-2">Overall Record</h4>
+                  <div className="flex justify-around text-center">
+                      <div>
+                          <div className="flex items-center justify-center gap-2 font-bold text-lg"><Shield /> You</div>
+                          <p className="text-2xl font-mono">{darkSelfStats.playerWins}</p>
+                      </div>
+                      <div>
+                          <div className="flex items-center justify-center gap-2 font-bold text-lg"><Moon /> Dark Self</div>
+                          <p className="text-2xl font-mono">{darkSelfStats.darkSelfWins}</p>
+                      </div>
+                  </div>
+              </div>
+            )}
             <div className="space-y-2">
               <Label className="flex items-center gap-2 font-medium">
                 <TimerIcon className="h-5 w-5" />
