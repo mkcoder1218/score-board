@@ -29,6 +29,7 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
   const [gameMode, setGameMode] = useState<GameMode>('Score Counter');
   const [useTimer, setUseTimer] = useState(false);
   const [timeLimit, setTimeLimit] = useState(60);
+  const [darkSelfTimeLimit, setDarkSelfTimeLimit] = useState(10);
   const { toast } = useToast();
 
   const form = useForm({
@@ -68,11 +69,17 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
   const handleStart = () => {
     const selectedPlayers = players.filter(p => selectedPlayerIds.includes(p.id));
 
+    let settings: GameSettings = {
+      mode: gameMode,
+      players: selectedPlayers,
+    };
+
     if (gameMode === 'Dark Self Challenge') {
         if (selectedPlayers.length !== 1) {
             toast({ variant: 'destructive', title: 'Invalid Selection', description: 'Dark Self Challenge requires exactly one player.' });
             return;
         }
+        settings.timeLimit = darkSelfTimeLimit;
     } else if (gameMode === 'First-Click Wins') {
        if (selectedPlayers.length < 1) {
             toast({ variant: 'destructive', title: 'Invalid Selection', description: 'Please select at least one player.' });
@@ -83,13 +90,12 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
             toast({ variant: 'destructive', title: 'Invalid Selection', description: 'Score Counter requires at least two players.' });
             return;
         }
+        if (useTimer) {
+          settings.timeLimit = timeLimit;
+        }
     }
 
-    onStartGame({
-      mode: gameMode,
-      players: selectedPlayers,
-      timeLimit: gameMode === 'Score Counter' && useTimer ? timeLimit : undefined,
-    });
+    onStartGame(settings);
   };
 
   return (
@@ -151,6 +157,26 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
                  <Input id="time-limit" type="number" value={timeLimit} onChange={e => setTimeLimit(Number(e.target.value))} min="10" />
                </div>
             )}
+          </div>
+        )}
+
+        {gameMode === 'Dark Self Challenge' && (
+          <div className="space-y-4 p-4 border rounded-lg bg-secondary/50">
+            <div className="space-y-2">
+              <Label htmlFor="dark-self-time-limit" className="flex items-center gap-2 font-medium">
+                <TimerIcon className="h-5 w-5" />
+                <span>Time Limit (seconds)</span>
+              </Label>
+              <Input 
+                id="dark-self-time-limit" 
+                type="number" 
+                value={darkSelfTimeLimit} 
+                onChange={e => setDarkSelfTimeLimit(Math.max(5, Math.min(60, Number(e.target.value))))} 
+                min="5"
+                max="60" 
+              />
+              <p className="text-xs text-muted-foreground">Choose a time between 5 and 60 seconds.</p>
+            </div>
           </div>
         )}
       </CardContent>

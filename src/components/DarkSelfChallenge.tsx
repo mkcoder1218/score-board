@@ -15,11 +15,12 @@ interface DarkSelfChallengeProps {
   onNewGame: () => void;
 }
 
-const CHALLENGE_TIME = 10; // 10 seconds
+const DEFAULT_CHALLENGE_TIME = 10;
 
 export default function DarkSelfChallenge({ settings, onGameEnd, onNewGame }: DarkSelfChallengeProps) {
+  const challengeTime = settings.timeLimit || DEFAULT_CHALLENGE_TIME;
   const [outcome, setOutcome] = useState<'won' | 'lost' | null>(null);
-  const [timeLeft, setTimeLeft] = useState(CHALLENGE_TIME);
+  const [timeLeft, setTimeLeft] = useState(challengeTime);
   const [motivationalMessage, setMotivationalMessage] = useState('');
   const [showDefeatDialog, setShowDefeatDialog] = useState(false);
 
@@ -31,7 +32,7 @@ export default function DarkSelfChallenge({ settings, onGameEnd, onNewGame }: Da
     if (timeLeft <= 0) {
       setOutcome('lost');
       onGameEnd({ winner: { id: 'dark-self', name: 'Dark Self' }, scores: [] });
-      generateDarkSelfMessage({ playerName: player.name, timeLimit: CHALLENGE_TIME })
+      generateDarkSelfMessage({ playerName: player.name, timeLimit: challengeTime })
         .then(response => {
           setMotivationalMessage(response.message);
           setShowDefeatDialog(true);
@@ -48,7 +49,7 @@ export default function DarkSelfChallenge({ settings, onGameEnd, onNewGame }: Da
     }, 10);
 
     return () => clearInterval(timer);
-  }, [timeLeft, outcome, onGameEnd, player.name]);
+  }, [timeLeft, outcome, onGameEnd, player.name, challengeTime]);
 
   const handleWin = () => {
     if (outcome) return;
@@ -56,7 +57,7 @@ export default function DarkSelfChallenge({ settings, onGameEnd, onNewGame }: Da
     onGameEnd({ winner: player, scores: [] });
   };
   
-  const progress = (timeLeft / CHALLENGE_TIME) * 100;
+  const progress = (timeLeft / challengeTime) * 100;
 
   return (
     <>
