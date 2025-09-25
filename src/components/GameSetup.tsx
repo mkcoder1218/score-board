@@ -50,14 +50,13 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
   }, []);
 
   useEffect(() => {
-    if (gameMode === 'Dark Self Challenge') {
+    if (gameMode === 'Dark Self Challenge' && selectedPlayerIds.length === 1) {
         const history = storage.getHistory();
-        const challengeHistory = history.filter(g => g.mode === 'Dark Self Challenge');
-        
-        // Assuming the first selected player is the one playing
         const currentPlayerId = selectedPlayerIds[0];
-        const playerWins = challengeHistory.filter(g => g.winner?.id !== 'dark-self' && g.players.some(p => p.id === currentPlayerId)).length;
-        const darkSelfWins = challengeHistory.filter(g => g.winner?.id === 'dark-self' && g.players.some(p => p.id === currentPlayerId)).length;
+        const challengeHistory = history.filter(g => g.mode === 'Dark Self Challenge' && g.players.some(p => p.id === currentPlayerId));
+        
+        const playerWins = challengeHistory.filter(g => g.winner?.id === currentPlayerId).length;
+        const darkSelfWins = challengeHistory.filter(g => g.winner?.id === 'dark-self').length;
         
         setDarkSelfStats({ playerWins, darkSelfWins });
     } else {
@@ -250,3 +249,5 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
     </Card>
   );
 }
+
+    
