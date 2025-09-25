@@ -29,7 +29,10 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
   const [gameMode, setGameMode] = useState<GameMode>('Score Counter');
   const [useTimer, setUseTimer] = useState(false);
   const [timeLimit, setTimeLimit] = useState(60);
-  const [darkSelfTimeLimit, setDarkSelfTimeLimit] = useState(10);
+  const [darkSelfHours, setDarkSelfHours] = useState(0);
+  const [darkSelfMinutes, setDarkSelfMinutes] = useState(0);
+  const [darkSelfSeconds, setDarkSelfSeconds] = useState(10);
+
   const { toast } = useToast();
 
   const form = useForm({
@@ -79,7 +82,12 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
             toast({ variant: 'destructive', title: 'Invalid Selection', description: 'Dark Self Challenge requires exactly one player.' });
             return;
         }
-        settings.timeLimit = darkSelfTimeLimit;
+        const totalSeconds = (darkSelfHours * 3600) + (darkSelfMinutes * 60) + darkSelfSeconds;
+        if (totalSeconds < 5) {
+          toast({ variant: 'destructive', title: 'Invalid Time', description: 'Dark Self Challenge requires a minimum of 5 seconds.' });
+          return;
+        }
+        settings.timeLimit = totalSeconds;
     } else if (gameMode === 'First-Click Wins') {
        if (selectedPlayers.length < 1) {
             toast({ variant: 'destructive', title: 'Invalid Selection', description: 'Please select at least one player.' });
@@ -163,18 +171,43 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
         {gameMode === 'Dark Self Challenge' && (
           <div className="space-y-4 p-4 border rounded-lg bg-secondary/50">
             <div className="space-y-2">
-              <Label htmlFor="dark-self-time-limit" className="flex items-center gap-2 font-medium">
+              <Label className="flex items-center gap-2 font-medium">
                 <TimerIcon className="h-5 w-5" />
-                <span>Time Limit (seconds)</span>
+                <span>Time Limit</span>
               </Label>
-              <Input 
-                id="dark-self-time-limit" 
-                type="number" 
-                value={darkSelfTimeLimit} 
-                onChange={e => setDarkSelfTimeLimit(Math.max(5, Number(e.target.value)))} 
-                min="5"
-              />
-              <p className="text-xs text-muted-foreground">Choose a time greater than 5 seconds.</p>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <Label htmlFor="dark-self-hours" className="text-xs text-muted-foreground">Hours</Label>
+                  <Input 
+                    id="dark-self-hours" 
+                    type="number" 
+                    value={darkSelfHours} 
+                    onChange={e => setDarkSelfHours(Math.max(0, Number(e.target.value)))} 
+                    min="0"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="dark-self-minutes" className="text-xs text-muted-foreground">Minutes</Label>
+                  <Input 
+                    id="dark-self-minutes" 
+                    type="number" 
+                    value={darkSelfMinutes} 
+                    onChange={e => setDarkSelfMinutes(Math.max(0, Number(e.target.value)))} 
+                    min="0"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="dark-self-seconds" className="text-xs text-muted-foreground">Seconds</Label>
+                  <Input 
+                    id="dark-self-seconds" 
+                    type="number" 
+                    value={darkSelfSeconds} 
+                    onChange={e => setDarkSelfSeconds(Math.max(0, Number(e.target.value)))} 
+                    min="0"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">Choose a total time of at least 5 seconds.</p>
             </div>
           </div>
         )}
