@@ -9,6 +9,7 @@ export type GameSettings = {
   mode: GameMode;
   timeLimit?: number;
   players: Player[];
+  tasks?: string[];
 };
 
 export type GameResult = {

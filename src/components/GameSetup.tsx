@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Switch } from '@/components/ui/switch';
-import { UserPlus, Trash2, Users, Timer as TimerIcon, Shield, Moon } from 'lucide-react';
+import { UserPlus, Trash2, Users, Timer as TimerIcon, Shield, Moon, ListChecks, PlusCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const formSchema = z.object({
@@ -33,6 +33,8 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
   const [darkSelfHours, setDarkSelfHours] = useState(0);
   const [darkSelfMinutes, setDarkSelfMinutes] = useState(0);
   const [darkSelfSeconds, setDarkSelfSeconds] = useState(10);
+  const [darkSelfTasks, setDarkSelfTasks] = useState<string[]>([]);
+  const [newTask, setNewTask] = useState('');
   const [darkSelfStats, setDarkSelfStats] = useState<{ playerWins: number; darkSelfWins: number } | null>(null);
 
   const { toast } = useToast();
@@ -59,10 +61,8 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
       let darkSelfWins = 0;
 
       for (const game of history) {
-        if (
-          game.mode === 'Dark Self Challenge' &&
-          game.players.some(p => p.id === currentPlayerId)
-        ) {
+        const playerInGame = game.players.find(p => p.id === currentPlayerId);
+        if (game.mode === 'Dark Self Challenge' && playerInGame) {
           if (game.winner?.id === currentPlayerId) {
             playerWins++;
           } else if (game.winner?.id === 'dark-self') {
@@ -97,6 +97,17 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
     );
   };
 
+  const handleAddTask = () => {
+    if (newTask.trim()) {
+      setDarkSelfTasks([...darkSelfTasks, newTask.trim()]);
+      setNewTask('');
+    }
+  };
+
+  const handleDeleteTask = (index: number) => {
+    setDarkSelfTasks(darkSelfTasks.filter((_, i) => i !== index));
+  };
+
   const handleStart = () => {
     const selectedPlayers = players.filter(p => selectedPlayerIds.includes(p.id));
 
@@ -116,6 +127,7 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
           return;
         }
         settings.timeLimit = totalSeconds;
+        settings.tasks = darkSelfTasks;
     } else if (gameMode === 'First-Click Wins') {
        if (selectedPlayers.length < 1) {
             toast({ variant: 'destructive', title: 'Invalid Selection', description: 'Please select at least one player.' });
@@ -197,7 +209,7 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
         )}
 
         {gameMode === 'Dark Self Challenge' && (
-          <div className="space-y-4 p-4 border rounded-lg bg-secondary/50">
+          <div className="space-y-6 p-4 border rounded-lg bg-secondary/50">
             {darkSelfStats && selectedPlayerIds.length === 1 && (
               <div className="p-3 bg-background/50 rounded-lg">
                   <h4 className="font-semibold text-center mb-2">Overall Record</h4>
@@ -251,6 +263,38 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">Choose a total time of at least 5 seconds.</p>
+            </div>
+             <div className="space-y-4">
+              <Label className="flex items-center gap-2 font-medium">
+                <ListChecks className="h-5 w-5" />
+                <span>Tasks to Complete</span>
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  value={newTask}
+                  onChange={(e) => setNewTask(e.target.value)}
+                  placeholder="e.g., 'Meditate for 10 minutes'"
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddTask(); }}}
+                />
+                <Button type="button" onClick={handleAddTask}><PlusCircle /></Button>
+              </div>
+              <div className="space-y-2">
+                {darkSelfTasks.map((task, index) => (
+                  <div key={index} className="flex items-center justify-between bg-background p-2 rounded-md">
+                    <p className="text-sm">{task}</p>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                      onClick={() => handleDeleteTask(index)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+                {darkSelfTasks.length === 0 && <p className="text-xs text-muted-foreground text-center pt-2">Add at least one task to start the challenge.</p>}
+              </div>
             </div>
           </div>
         )}

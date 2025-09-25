@@ -6,15 +6,23 @@ import type { GameSettings, GameResult } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Shield, User, XCircle, Moon } from 'lucide-react';
+import { Shield, User, XCircle, Moon, CheckSquare, Square } from 'lucide-react';
 import { generateDarkSelfMessage } from '@/ai/flows/dark-self-challenge-prompt';
 import { Progress } from '@/components/ui/progress';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 
 interface DarkSelfChallengeProps {
   settings: GameSettings;
   onGameEnd: (result: Omit<GameResult, 'id' | 'date' | 'players' | 'mode'>) => void;
   onNewGame: () => void;
 }
+
+type Task = {
+    id: string;
+    description: string;
+    completed: boolean;
+};
 
 const DEFAULT_CHALLENGE_TIME = 10;
 const ORIGINAL_TITLE = 'Consistent Clicker';
@@ -50,6 +58,13 @@ export default function DarkSelfChallenge({ settings, onGameEnd, onNewGame }: Da
   const [timeLeft, setTimeLeft] = useState(challengeTime);
   const [motivationalMessage, setMotivationalMessage] = useState('');
   const [showDefeatDialog, setShowDefeatDialog] = useState(false);
+  const [tasks, setTasks] = useState<Task[]>(
+    settings.tasks?.map((task, index) => ({
+      id: `task-${index}`,
+      description: task,
+      completed: false,
+    })) || []
+  );
 
   const gameEndedRef = useRef(false);
   const player = settings.players[0];
@@ -120,9 +135,19 @@ export default function DarkSelfChallenge({ settings, onGameEnd, onNewGame }: Da
         onGameEnd({ winner: player, scores: [] });
     }
   }, [outcome, onGameEnd, player, challengeTime]);
+  
+  const handleTaskToggle = (taskId: string) => {
+    setTasks(prevTasks =>
+      prevTasks.map(task =>
+        task.id === taskId ? { ...task, completed: !task.completed } : task
+      )
+    );
+  };
+  
+  const allTasksCompleted = tasks.length > 0 && tasks.every(t => t.completed);
 
   const handleWin = () => {
-    if (outcome) return;
+    if (outcome || !allTasksCompleted) return;
     setOutcome('won');
   };
   
@@ -139,11 +164,32 @@ export default function DarkSelfChallenge({ settings, onGameEnd, onNewGame }: Da
           {!outcome && (
             <>
                <div className="w-full space-y-2 text-center">
-                 <p className="text-lg font-medium">Click before time runs out!</p>
+                 <p className="text-lg font-medium">Complete your tasks before time runs out!</p>
                  <Progress value={progress} className="w-full h-4" />
                  <p className="font-mono text-2xl font-bold">{Math.max(0, timeLeft).toFixed(2)}s</p>
                </div>
-               <Button onClick={handleWin} className="w-full h-32 text-2xl font-bold font-headline transform transition-transform hover:scale-105">
+               
+               {tasks.length > 0 && (
+                <div className="w-full space-y-3 rounded-lg border p-4">
+                  {tasks.map(task => (
+                    <div key={task.id} className="flex items-center gap-3">
+                      <Checkbox
+                        id={task.id}
+                        checked={task.completed}
+                        onCheckedChange={() => handleTaskToggle(task.id)}
+                      />
+                      <Label
+                        htmlFor={task.id}
+                        className={`flex-1 text-sm ${task.completed ? 'text-muted-foreground line-through' : 'text-foreground'}`}
+                      >
+                        {task.description}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+               )}
+
+               <Button onClick={handleWin} disabled={!allTasksCompleted} className="w-full h-20 text-2xl font-bold font-headline transform transition-transform hover:scale-105">
                  <Shield className="mr-4 h-8 w-8" /> I DID IT
                </Button>
             </>
