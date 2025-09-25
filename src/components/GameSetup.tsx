@@ -171,11 +171,10 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
                 id="dark-self-time-limit" 
                 type="number" 
                 value={darkSelfTimeLimit} 
-                onChange={e => setDarkSelfTimeLimit(Math.max(5, Math.min(60, Number(e.target.value))))} 
+                onChange={e => setDarkSelfTimeLimit(Math.max(5, Number(e.target.value)))} 
                 min="5"
-                max="60" 
               />
-              <p className="text-xs text-muted-foreground">Choose a time between 5 and 60 seconds.</p>
+              <p className="text-xs text-muted-foreground">Choose a time greater than 5 seconds.</p>
             </div>
           </div>
         )}
