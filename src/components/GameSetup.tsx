@@ -53,10 +53,20 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
     if (gameMode === 'Dark Self Challenge' && selectedPlayerIds.length === 1) {
         const history = storage.getHistory();
         const currentPlayerId = selectedPlayerIds[0];
-        const challengeHistory = history.filter(g => g.mode === 'Dark Self Challenge' && g.players.some(p => p.id === currentPlayerId));
         
-        const playerWins = challengeHistory.filter(g => g.winner?.id === currentPlayerId).length;
-        const darkSelfWins = challengeHistory.filter(g => g.winner?.id === 'dark-self' && g.players.some(p => p.id === currentPlayerId)).length;
+        let playerWins = 0;
+        let darkSelfWins = 0;
+
+        history.forEach(game => {
+          // Check if this game was a Dark Self Challenge and if the current player participated
+          if (game.mode === 'Dark Self Challenge' && game.players.some(p => p.id === currentPlayerId)) {
+            if (game.winner?.id === currentPlayerId) {
+              playerWins++;
+            } else if (game.winner?.id === 'dark-self') {
+              darkSelfWins++;
+            }
+          }
+        });
         
         setDarkSelfStats({ playerWins, darkSelfWins });
     } else {
