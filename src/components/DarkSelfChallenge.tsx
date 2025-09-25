@@ -1,0 +1,118 @@
+"use client";
+
+import { useState, useEffect } from 'react';
+import type { GameSettings, GameResult } from '@/lib/types';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Shield, User, XCircle, Moon } from 'lucide-react';
+import { generateDarkSelfMessage } from '@/ai/flows/dark-self-challenge-prompt';
+import { Progress } from '@/components/ui/progress';
+
+interface DarkSelfChallengeProps {
+  settings: GameSettings;
+  onGameEnd: (result: Omit<GameResult, 'id' | 'date' | 'players' | 'mode'>) => void;
+  onNewGame: () => void;
+}
+
+const CHALLENGE_TIME = 10; // 10 seconds
+
+export default function DarkSelfChallenge({ settings, onGameEnd, onNewGame }: DarkSelfChallengeProps) {
+  const [outcome, setOutcome] = useState<'won' | 'lost' | null>(null);
+  const [timeLeft, setTimeLeft] = useState(CHALLENGE_TIME);
+  const [motivationalMessage, setMotivationalMessage] = useState('');
+  const [showDefeatDialog, setShowDefeatDialog] = useState(false);
+
+  const player = settings.players[0];
+
+  useEffect(() => {
+    if (outcome) return;
+
+    if (timeLeft <= 0) {
+      setOutcome('lost');
+      onGameEnd({ winner: { id: 'dark-self', name: 'Dark Self' }, scores: [] });
+      generateDarkSelfMessage({ playerName: player.name, timeLimit: CHALLENGE_TIME })
+        .then(response => {
+          setMotivationalMessage(response.message);
+          setShowDefeatDialog(true);
+        }).catch(err => {
+            console.error("AI message generation failed:", err);
+            setMotivationalMessage("Every setback is a setup for a comeback. Analyze, adapt, and act.");
+            setShowDefeatDialog(true);
+        });
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setTimeLeft(t => t - 0.01);
+    }, 10);
+
+    return () => clearInterval(timer);
+  }, [timeLeft, outcome, onGameEnd, player.name]);
+
+  const handleWin = () => {
+    if (outcome) return;
+    setOutcome('won');
+    onGameEnd({ winner: player, scores: [] });
+  };
+  
+  const progress = (timeLeft / CHALLENGE_TIME) * 100;
+
+  return (
+    <>
+      <Card className="max-w-md mx-auto animate-in fade-in-0 zoom-in-95">
+        <CardHeader className="text-center">
+          <CardTitle className="font-headline text-3xl">Dark Self Challenge</CardTitle>
+          <CardDescription className="flex items-center justify-center gap-2"><User /> {player.name}</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col items-center gap-6">
+          {!outcome && (
+            <>
+               <div className="w-full space-y-2 text-center">
+                 <p className="text-lg font-medium">Click before time runs out!</p>
+                 <Progress value={progress} className="w-full h-4" />
+                 <p className="font-mono text-2xl font-bold">{Math.max(0, timeLeft).toFixed(2)}s</p>
+               </div>
+               <Button onClick={handleWin} className="w-full h-32 text-2xl font-bold font-headline transform transition-transform hover:scale-105">
+                 <Shield className="mr-4 h-8 w-8" /> I DID IT
+               </Button>
+            </>
+          )}
+
+          {outcome === 'won' && (
+            <div className="text-center p-8 bg-accent/20 rounded-lg w-full animate-in fade-in-0 zoom-in-95">
+              <h2 className="text-4xl font-bold text-accent-foreground font-headline">You Won!</h2>
+              <p className="mt-2 text-muted-foreground">Consistency is key. Keep it up!</p>
+            </div>
+          )}
+
+          {outcome === 'lost' && (
+            <div className="text-center p-8 bg-destructive/20 rounded-lg w-full animate-in fade-in-0 zoom-in-95">
+              <h2 className="text-4xl font-bold text-destructive-foreground font-headline">Dark Self Won</h2>
+              <p className="mt-2 text-muted-foreground">The shadows of procrastination took this round.</p>
+            </div>
+          )}
+        </CardContent>
+        <CardFooter className="pt-6">
+          <Button onClick={onNewGame} variant="outline" className="w-full">
+            <XCircle className="mr-2" /> New Game
+          </Button>
+        </CardFooter>
+      </Card>
+      
+      <AlertDialog open={showDefeatDialog} onOpenChange={setShowDefeatDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 font-headline"><Moon /> A word from the shadows...</AlertDialogTitle>
+            <AlertDialogDescription className="text-lg py-4">
+              {motivationalMessage || "Loading..."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction>I understand.</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
