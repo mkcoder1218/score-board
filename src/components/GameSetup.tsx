@@ -51,26 +51,21 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
 
   useEffect(() => {
     if (gameMode === 'Dark Self Challenge' && selectedPlayerIds.length === 1) {
-        const history = storage.getHistory();
-        const currentPlayerId = selectedPlayerIds[0];
-        
-        let playerWins = 0;
-        let darkSelfWins = 0;
+      const history = storage.getHistory();
+      const currentPlayerId = selectedPlayerIds[0];
 
-        history.forEach(game => {
-          // Check if this game was a Dark Self Challenge and if the current player participated
-          if (game.mode === 'Dark Self Challenge' && game.players.some(p => p.id === currentPlayerId)) {
-            if (game.winner?.id === currentPlayerId) {
-              playerWins++;
-            } else if (game.winner?.id === 'dark-self') {
-              darkSelfWins++;
-            }
-          }
-        });
-        
-        setDarkSelfStats({ playerWins, darkSelfWins });
+      const relevantGames = history.filter(game => 
+        game.mode === 'Dark Self Challenge' &&
+        game.players.length === 1 &&
+        game.players[0].id === currentPlayerId
+      );
+
+      const playerWins = relevantGames.filter(game => game.winner?.id === currentPlayerId).length;
+      const darkSelfWins = relevantGames.filter(game => game.winner?.id === 'dark-self').length;
+
+      setDarkSelfStats({ playerWins, darkSelfWins });
     } else {
-        setDarkSelfStats(null);
+      setDarkSelfStats(null);
     }
   }, [gameMode, selectedPlayerIds]);
 
