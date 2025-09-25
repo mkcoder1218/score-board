@@ -16,6 +16,7 @@ interface DarkSelfChallengeProps {
 }
 
 const DEFAULT_CHALLENGE_TIME = 10;
+const ORIGINAL_TITLE = 'Consistent Clicker';
 
 // Helper to request notification permission
 const requestNotificationPermission = async () => {
@@ -35,6 +36,13 @@ const showNotification = (title: string, body: string) => {
     }
 };
 
+const formatTimeForTitle = (seconds: number) => {
+    if (seconds <= 0) return "00:00";
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+};
+
 export default function DarkSelfChallenge({ settings, onGameEnd, onNewGame }: DarkSelfChallengeProps) {
   const challengeTime = settings.timeLimit || DEFAULT_CHALLENGE_TIME;
   const [outcome, setOutcome] = useState<'won' | 'lost' | null>(null);
@@ -44,6 +52,22 @@ export default function DarkSelfChallenge({ settings, onGameEnd, onNewGame }: Da
 
   const player = settings.players[0];
   const endTimeRef = useRef<number | null>(null);
+
+  // Effect to manage the document title
+  useEffect(() => {
+    const originalTitle = document.title;
+    if (outcome) {
+        document.title = originalTitle;
+    } else {
+        document.title = `${formatTimeForTitle(timeLeft)} | ${ORIGINAL_TITLE}`;
+    }
+    
+    // Cleanup function to restore original title on unmount
+    return () => {
+        document.title = originalTitle;
+    };
+  }, [timeLeft, outcome]);
+
 
   useEffect(() => {
     // Request permission as soon as the component mounts
@@ -73,6 +97,7 @@ export default function DarkSelfChallenge({ settings, onGameEnd, onNewGame }: Da
 
   useEffect(() => {
     if (outcome === 'lost') {
+      document.title = `Defeat | ${ORIGINAL_TITLE}`;
       onGameEnd({ winner: { id: 'dark-self', name: 'Dark Self' }, scores: [] });
       showNotification('Dark Self Challenge', 'You ran out of time. The Dark Self has won.');
       generateDarkSelfMessage({ playerName: player.name, timeLimit: challengeTime })
@@ -84,6 +109,8 @@ export default function DarkSelfChallenge({ settings, onGameEnd, onNewGame }: Da
             setMotivationalMessage("Every setback is a setup for a comeback. Analyze, adapt, and act.");
             setShowDefeatDialog(true);
         });
+    } else if (outcome === 'won') {
+        document.title = `Victory! | ${ORIGINAL_TITLE}`;
     }
   }, [outcome, onGameEnd, player.name, challengeTime]);
 
