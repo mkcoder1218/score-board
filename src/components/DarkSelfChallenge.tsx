@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { GameSettings, GameResult } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
@@ -17,6 +17,24 @@ interface DarkSelfChallengeProps {
 
 const DEFAULT_CHALLENGE_TIME = 10;
 
+// Helper to request notification permission
+const requestNotificationPermission = async () => {
+    if (!('Notification' in window)) {
+        console.log("This browser does not support desktop notification");
+        return;
+    }
+    if (Notification.permission !== 'denied') {
+        await Notification.requestPermission();
+    }
+};
+
+// Helper to show a notification
+const showNotification = (title: string, body: string) => {
+    if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification(title, { body });
+    }
+};
+
 export default function DarkSelfChallenge({ settings, onGameEnd, onNewGame }: DarkSelfChallengeProps) {
   const challengeTime = settings.timeLimit || DEFAULT_CHALLENGE_TIME;
   const [outcome, setOutcome] = useState<'won' | 'lost' | null>(null);
@@ -25,13 +43,38 @@ export default function DarkSelfChallenge({ settings, onGameEnd, onNewGame }: Da
   const [showDefeatDialog, setShowDefeatDialog] = useState(false);
 
   const player = settings.players[0];
+  const endTimeRef = useRef<number | null>(null);
 
   useEffect(() => {
+    // Request permission as soon as the component mounts
+    requestNotificationPermission();
+
     if (outcome) return;
 
-    if (timeLeft <= 0) {
-      setOutcome('lost');
+    // Set the end time when the challenge starts
+    if (endTimeRef.current === null) {
+      endTimeRef.current = Date.now() + challengeTime * 1000;
+    }
+
+    const timer = setInterval(() => {
+      if (endTimeRef.current) {
+        const remaining = endTimeRef.current - Date.now();
+        if (remaining <= 0) {
+          setTimeLeft(0);
+          setOutcome('lost');
+        } else {
+          setTimeLeft(remaining / 1000);
+        }
+      }
+    }, 50); // Update UI more frequently for a smoother progress bar
+
+    return () => clearInterval(timer);
+  }, [outcome, challengeTime]);
+
+  useEffect(() => {
+    if (outcome === 'lost') {
       onGameEnd({ winner: { id: 'dark-self', name: 'Dark Self' }, scores: [] });
+      showNotification('Dark Self Challenge', 'You ran out of time. The Dark Self has won.');
       generateDarkSelfMessage({ playerName: player.name, timeLimit: challengeTime })
         .then(response => {
           setMotivationalMessage(response.message);
@@ -41,15 +84,8 @@ export default function DarkSelfChallenge({ settings, onGameEnd, onNewGame }: Da
             setMotivationalMessage("Every setback is a setup for a comeback. Analyze, adapt, and act.");
             setShowDefeatDialog(true);
         });
-      return;
     }
-
-    const timer = setInterval(() => {
-      setTimeLeft(t => t - 0.01);
-    }, 10);
-
-    return () => clearInterval(timer);
-  }, [timeLeft, outcome, onGameEnd, player.name, challengeTime]);
+  }, [outcome, onGameEnd, player.name, challengeTime]);
 
   const handleWin = () => {
     if (outcome) return;
