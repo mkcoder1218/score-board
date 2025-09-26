@@ -62,22 +62,21 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
     if (gameMode === 'Dark Self Challenge' && selectedPlayerIds.length === 1) {
       const history = storage.getHistory();
       const currentPlayerId = selectedPlayerIds[0];
-      const playerInGames = history.filter(game => game.mode === 'Dark Self Challenge' && game.players.some(p => p.id === currentPlayerId));
-
+      const playerInGames = history.filter(game => 
+        game.mode === 'Dark Self Challenge' && game.players.some(p => p.id === currentPlayerId)
+      );
+      
       let playerWins = 0;
       let darkSelfWins = 0;
 
-      for (const game of playerInGames) {
-        // Ensure the player was actually in this specific game before counting
-        const playerInThisGame = game.players.find(p => p.id === currentPlayerId);
-        if (playerInThisGame) {
-          if (game.winner?.id === currentPlayerId) {
-            playerWins++;
-          } else if (game.winner?.id === 'dark-self') {
-            darkSelfWins++;
-          }
+      playerInGames.forEach(game => {
+        if (game.winner?.id === currentPlayerId) {
+          playerWins++;
+        } else if (game.winner?.id === 'dark-self') {
+          darkSelfWins++;
         }
-      }
+      });
+      
       setDarkSelfStats({ playerWins, darkSelfWins });
     } else {
       setDarkSelfStats(null);
@@ -332,7 +331,7 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
               <TabsContent value="Commitment Challenge" className="space-y-6 pt-4">
                 <p className="text-sm text-muted-foreground">Commit to starting a task. A button will appear when it's time. Click it before the grace period ends to win.</p>
                 <div className="space-y-2">
-                  <Label htmlFor="commitment-time">Commitment Time (minutes)</Label>
+                  <Label htmlFor="commitment-time">Time to start (minutes)</Label>
                   <Input 
                     id="commitment-time" 
                     type="number" 
@@ -343,7 +342,7 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
                   <p className="text-xs text-muted-foreground">Time until you must start your task.</p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="grace-time">Grace Period (minutes)</Label>
+                  <Label htmlFor="grace-time">Grace period (minutes)</Label>
                   <Input 
                     id="grace-time" 
                     type="number" 
@@ -364,3 +363,5 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
     </Card>
   );
 }
+
+    

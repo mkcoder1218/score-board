@@ -46,7 +46,7 @@ const showNotification = (title: string, body: string) => {
 };
 
 const formatTime = (seconds: number) => {
-    if (seconds <= 0) return "00:00:00";
+    if (seconds < 0) seconds = 0;
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
     const s = Math.floor(seconds % 60);
@@ -111,12 +111,10 @@ export default function DarkSelfChallenge({ settings, onGameEnd, onNewGame }: Da
       }
       if (endTimeRef.current) {
         const remaining = endTimeRef.current - Date.now();
+        setTimeLeft(remaining / 1000);
         if (remaining <= 0) {
-          setTimeLeft(0);
           setOutcome('lost');
           clearInterval(timer);
-        } else {
-          setTimeLeft(remaining / 1000);
         }
       }
     }, 50);
@@ -278,3 +276,5 @@ export default function DarkSelfChallenge({ settings, onGameEnd, onNewGame }: Da
     </>
   );
 }
+
+    
