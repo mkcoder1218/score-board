@@ -8,7 +8,7 @@ import {
   signInWithEmailAndPassword,
   updateProfile
 } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, writeBatch } from 'firebase/firestore';
 import { useAuth, useFirebaseAuth, useFirestore } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -54,13 +54,24 @@ export default function LoginPage() {
 
       await updateProfile(user, { displayName });
 
+      // Use a batch to perform multiple writes atomically
+      const batch = writeBatch(db);
+
+      // 1. Create the main user document
       const userRef = doc(db, 'users', user.uid);
-      await setDoc(userRef, {
+      batch.set(userRef, {
         uid: user.uid,
         email: user.email,
         displayName: displayName,
         photoURL: user.photoURL,
       }, { merge: true });
+      
+      // 2. Create the user's own player profile in the players sub-collection
+      const playerRef = doc(db, 'users', user.uid, 'players', user.uid);
+      batch.set(playerRef, { name: displayName });
+
+      // Commit the batch
+      await batch.commit();
 
       toast({ title: "Account created successfully!" });
       router.push('/');
