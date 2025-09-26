@@ -2,11 +2,11 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
-import type { GameSettings, GameResult } from '@/lib/types';
+import type { GameSettings, GameResult, DarkSelfMode } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Shield, User, XCircle, Moon, CheckSquare, Square } from 'lucide-react';
+import { Shield, User, XCircle, Moon, Clock, Zap } from 'lucide-react';
 import { generateDarkSelfMessage } from '@/ai/flows/dark-self-challenge-prompt';
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -45,6 +45,14 @@ const showNotification = (title: string, body: string) => {
     }
 };
 
+const formatTime = (seconds: number) => {
+    if (seconds <= 0) return "00:00:00";
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+};
+
 const formatTimeForTitle = (seconds: number) => {
     if (seconds <= 0) return "00:00";
     const mins = Math.floor(seconds / 60);
@@ -53,7 +61,10 @@ const formatTimeForTitle = (seconds: number) => {
 };
 
 export default function DarkSelfChallenge({ settings, onGameEnd, onNewGame }: DarkSelfChallengeProps) {
+  const darkSelfMode = settings.darkSelfMode || 'Task Completion';
   const challengeTime = settings.timeLimit || DEFAULT_CHALLENGE_TIME;
+  const commitmentTime = settings.commitmentTime || 0;
+  
   const [outcome, setOutcome] = useState<'won' | 'lost' | null>(null);
   const [timeLeft, setTimeLeft] = useState(challengeTime);
   const [motivationalMessage, setMotivationalMessage] = useState('');
@@ -70,6 +81,8 @@ export default function DarkSelfChallenge({ settings, onGameEnd, onNewGame }: Da
   const player = settings.players[0];
   const endTimeRef = useRef<number | null>(null);
 
+  const showCommitmentButton = darkSelfMode === 'Commitment Challenge' && timeLeft <= (settings.graceTime || 0);
+
   // Effect to manage the document title
   useEffect(() => {
     const originalTitle = document.title;
@@ -79,7 +92,6 @@ export default function DarkSelfChallenge({ settings, onGameEnd, onNewGame }: Da
         document.title = `${formatTimeForTitle(timeLeft)} | ${ORIGINAL_TITLE}`;
     }
     
-    // Cleanup function to restore original title on unmount
     return () => {
         document.title = originalTitle;
     };
@@ -87,12 +99,9 @@ export default function DarkSelfChallenge({ settings, onGameEnd, onNewGame }: Da
 
 
   useEffect(() => {
-    // Request permission as soon as the component mounts
     requestNotificationPermission();
-
     if (outcome) return;
 
-    // Set the end time when the challenge starts
     if (endTimeRef.current === null) {
       endTimeRef.current = Date.now() + challengeTime * 1000;
     }
@@ -107,7 +116,7 @@ export default function DarkSelfChallenge({ settings, onGameEnd, onNewGame }: Da
           setTimeLeft(remaining / 1000);
         }
       }
-    }, 50); // Update UI more frequently for a smoother progress bar
+    }, 50);
 
     return () => clearInterval(timer);
   }, [outcome, challengeTime]);
@@ -147,11 +156,77 @@ export default function DarkSelfChallenge({ settings, onGameEnd, onNewGame }: Da
   const allTasksCompleted = tasks.length > 0 && tasks.every(t => t.completed);
 
   const handleWin = () => {
-    if (outcome || !allTasksCompleted) return;
+    if (outcome) return;
+    if (darkSelfMode === 'Task Completion' && !allTasksCompleted) return;
     setOutcome('won');
   };
   
   const progress = (timeLeft / challengeTime) * 100;
+  const graceProgress = darkSelfMode === 'Commitment Challenge' ? (timeLeft / (settings.graceTime || 1)) * 100 : 0;
+
+  const renderContent = () => {
+    if (darkSelfMode === 'Task Completion') {
+      return (
+        <>
+           <div className="w-full space-y-2 text-center">
+             <p className="text-lg font-medium">Complete your tasks before time runs out!</p>
+             <Progress value={progress} className="w-full h-4" />
+             <p className="font-mono text-2xl font-bold">{formatTime(timeLeft)}</p>
+           </div>
+           
+           {tasks.length > 0 && (
+            <div className="w-full space-y-3 rounded-lg border p-4">
+              {tasks.map(task => (
+                <div key={task.id} className="flex items-center gap-3">
+                  <Checkbox
+                    id={task.id}
+                    checked={task.completed}
+                    onCheckedChange={() => handleTaskToggle(task.id)}
+                  />
+                  <Label
+                    htmlFor={task.id}
+                    className={`flex-1 text-sm ${task.completed ? 'text-muted-foreground line-through' : 'text-foreground'}`}
+                  >
+                    {task.description}
+                  </Label>
+                </div>
+              ))}
+            </div>
+           )}
+
+           <Button onClick={handleWin} disabled={!allTasksCompleted} className="w-full h-20 text-2xl font-bold font-headline transform transition-transform hover:scale-105">
+             <Shield className="mr-4 h-8 w-8" /> I DID IT
+           </Button>
+        </>
+      )
+    }
+
+    if (darkSelfMode === 'Commitment Challenge') {
+        return (
+            <>
+                {!showCommitmentButton && (
+                    <div className="w-full space-y-2 text-center">
+                        <p className="text-lg font-medium">Time until your commitment begins:</p>
+                        <Clock className="mx-auto h-12 w-12 my-4" />
+                        <p className="font-mono text-4xl font-bold">{formatTime(timeLeft - (settings.graceTime || 0))}</p>
+                    </div>
+                )}
+                {showCommitmentButton && (
+                    <div className="w-full space-y-4 text-center">
+                        <p className="text-lg font-medium">Grace period! Press the button now!</p>
+                        <Progress value={graceProgress} className="w-full h-4" />
+                        <p className="font-mono text-2xl font-bold">{timeLeft.toFixed(2)}s</p>
+                        <Button onClick={handleWin} className="w-full h-20 text-2xl font-bold font-headline transform transition-transform hover:scale-105">
+                            <Zap className="mr-4 h-8 w-8" /> I'M STARTING NOW!
+                        </Button>
+                    </div>
+                )}
+            </>
+        )
+    }
+
+    return null;
+  }
 
   return (
     <>
@@ -161,39 +236,7 @@ export default function DarkSelfChallenge({ settings, onGameEnd, onNewGame }: Da
           <CardDescription className="flex items-center justify-center gap-2"><User /> {player.name}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col items-center gap-6">
-          {!outcome && (
-            <>
-               <div className="w-full space-y-2 text-center">
-                 <p className="text-lg font-medium">Complete your tasks before time runs out!</p>
-                 <Progress value={progress} className="w-full h-4" />
-                 <p className="font-mono text-2xl font-bold">{Math.max(0, timeLeft).toFixed(2)}s</p>
-               </div>
-               
-               {tasks.length > 0 && (
-                <div className="w-full space-y-3 rounded-lg border p-4">
-                  {tasks.map(task => (
-                    <div key={task.id} className="flex items-center gap-3">
-                      <Checkbox
-                        id={task.id}
-                        checked={task.completed}
-                        onCheckedChange={() => handleTaskToggle(task.id)}
-                      />
-                      <Label
-                        htmlFor={task.id}
-                        className={`flex-1 text-sm ${task.completed ? 'text-muted-foreground line-through' : 'text-foreground'}`}
-                      >
-                        {task.description}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-               )}
-
-               <Button onClick={handleWin} disabled={!allTasksCompleted} className="w-full h-20 text-2xl font-bold font-headline transform transition-transform hover:scale-105">
-                 <Shield className="mr-4 h-8 w-8" /> I DID IT
-               </Button>
-            </>
-          )}
+          {!outcome && renderContent()}
 
           {outcome === 'won' && (
             <div className="text-center p-8 bg-accent/20 rounded-lg w-full animate-in fade-in-0 zoom-in-95">

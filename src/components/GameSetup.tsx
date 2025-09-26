@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import type { Player, GameMode, GameSettings } from '@/lib/types';
+import type { Player, GameMode, GameSettings, DarkSelfMode } from '@/lib/types';
 import * as storage from '@/lib/storage';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Switch } from '@/components/ui/switch';
 import { UserPlus, Trash2, Users, Timer as TimerIcon, Shield, Moon, ListChecks, PlusCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 const formSchema = z.object({
   newPlayerName: z.string().min(1, 'Player name cannot be empty.').max(20, 'Player name is too long.'),
@@ -30,9 +31,14 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
   const [gameMode, setGameMode] = useState<GameMode>('Score Counter');
   const [useTimer, setUseTimer] = useState(false);
   const [timeLimit, setTimeLimit] = useState(60);
-  const [darkSelfHours, setDarkSelfHours] = useState(0);
-  const [darkSelfMinutes, setDarkSelfMinutes] = useState(0);
-  const [darkSelfSeconds, setDarkSelfSeconds] = useState(10);
+
+  // Dark Self State
+  const [darkSelfMode, setDarkSelfMode] = useState<DarkSelfMode>('Task Completion');
+  const [taskHours, setTaskHours] = useState(0);
+  const [taskMinutes, setTaskMinutes] = useState(10);
+  const [taskSeconds, setTaskSeconds] = useState(0);
+  const [commitmentMinutes, setCommitmentMinutes] = useState(10);
+  const [graceMinutes, setGraceMinutes] = useState(2);
   const [darkSelfTasks, setDarkSelfTasks] = useState<string[]>([]);
   const [newTask, setNewTask] = useState('');
   const [darkSelfStats, setDarkSelfStats] = useState<{ playerWins: number; darkSelfWins: number } | null>(null);
@@ -56,13 +62,15 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
     if (gameMode === 'Dark Self Challenge' && selectedPlayerIds.length === 1) {
       const history = storage.getHistory();
       const currentPlayerId = selectedPlayerIds[0];
+      const playerInGames = history.filter(game => game.mode === 'Dark Self Challenge' && game.players.some(p => p.id === currentPlayerId));
 
       let playerWins = 0;
       let darkSelfWins = 0;
 
-      for (const game of history) {
-        const playerInGame = game.players.find(p => p.id === currentPlayerId);
-        if (game.mode === 'Dark Self Challenge' && playerInGame) {
+      for (const game of playerInGames) {
+        // Ensure the player was actually in this specific game before counting
+        const playerInThisGame = game.players.find(p => p.id === currentPlayerId);
+        if (playerInThisGame) {
           if (game.winner?.id === currentPlayerId) {
             playerWins++;
           } else if (game.winner?.id === 'dark-self') {
@@ -121,13 +129,31 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
             toast({ variant: 'destructive', title: 'Invalid Selection', description: 'Dark Self Challenge requires exactly one player.' });
             return;
         }
-        const totalSeconds = (darkSelfHours * 3600) + (darkSelfMinutes * 60) + darkSelfSeconds;
-        if (totalSeconds < 5) {
-          toast({ variant: 'destructive', title: 'Invalid Time', description: 'Dark Self Challenge requires a minimum of 5 seconds.' });
-          return;
+        settings.darkSelfMode = darkSelfMode;
+        if (darkSelfMode === 'Task Completion') {
+          const totalSeconds = (taskHours * 3600) + (taskMinutes * 60) + taskSeconds;
+          if (totalSeconds < 5) {
+            toast({ variant: 'destructive', title: 'Invalid Time', description: 'Task Completion requires a minimum of 5 seconds.' });
+            return;
+          }
+          if (darkSelfTasks.length === 0) {
+            toast({ variant: 'destructive', title: 'No Tasks', description: 'Please add at least one task to complete.' });
+            return;
+          }
+          settings.timeLimit = totalSeconds;
+          settings.tasks = darkSelfTasks;
+        } else { // Commitment Challenge
+            const commitmentSecs = commitmentMinutes * 60;
+            const graceSecs = graceMinutes * 60;
+            if(commitmentSecs <= 0 || graceSecs <=0) {
+              toast({ variant: 'destructive', title: 'Invalid Time', description: 'Commitment and grace times must be positive.' });
+              return;
+            }
+            settings.commitmentTime = commitmentSecs;
+            settings.graceTime = graceSecs;
+            settings.timeLimit = commitmentSecs + graceSecs;
         }
-        settings.timeLimit = totalSeconds;
-        settings.tasks = darkSelfTasks;
+
     } else if (gameMode === 'First-Click Wins') {
        if (selectedPlayers.length < 1) {
             toast({ variant: 'destructive', title: 'Invalid Selection', description: 'Please select at least one player.' });
@@ -225,77 +251,110 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
                   </div>
               </div>
             )}
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2 font-medium">
-                <TimerIcon className="h-5 w-5" />
-                <span>Time Limit</span>
-              </Label>
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <Label htmlFor="dark-self-hours" className="text-xs text-muted-foreground">Hours</Label>
-                  <Input 
-                    id="dark-self-hours" 
-                    type="number" 
-                    value={darkSelfHours} 
-                    onChange={e => setDarkSelfHours(Math.max(0, Number(e.target.value)))} 
-                    min="0"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="dark-self-minutes" className="text-xs text-muted-foreground">Minutes</Label>
-                  <Input 
-                    id="dark-self-minutes" 
-                    type="number" 
-                    value={darkSelfMinutes} 
-                    onChange={e => setDarkSelfMinutes(Math.max(0, Number(e.target.value)))} 
-                    min="0"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="dark-self-seconds" className="text-xs text-muted-foreground">Seconds</Label>
-                  <Input 
-                    id="dark-self-seconds" 
-                    type="number" 
-                    value={darkSelfSeconds} 
-                    onChange={e => setDarkSelfSeconds(Math.max(0, Number(e.target.value)))} 
-                    min="0"
-                  />
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground">Choose a total time of at least 5 seconds.</p>
-            </div>
-             <div className="space-y-4">
-              <Label className="flex items-center gap-2 font-medium">
-                <ListChecks className="h-5 w-5" />
-                <span>Tasks to Complete</span>
-              </Label>
-              <div className="flex gap-2">
-                <Input
-                  value={newTask}
-                  onChange={(e) => setNewTask(e.target.value)}
-                  placeholder="e.g., 'Meditate for 10 minutes'"
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddTask(); }}}
-                />
-                <Button type="button" onClick={handleAddTask}><PlusCircle /></Button>
-              </div>
-              <div className="space-y-2">
-                {darkSelfTasks.map((task, index) => (
-                  <div key={index} className="flex items-center justify-between bg-background p-2 rounded-md">
-                    <p className="text-sm">{task}</p>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                      onClick={() => handleDeleteTask(index)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+            <Tabs value={darkSelfMode} onValueChange={(value) => setDarkSelfMode(value as DarkSelfMode)} className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="Task Completion">Task Completion</TabsTrigger>
+                <TabsTrigger value="Commitment Challenge">Commitment</TabsTrigger>
+              </TabsList>
+              <TabsContent value="Task Completion" className="space-y-6 pt-4">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2 font-medium">
+                    <TimerIcon className="h-5 w-5" />
+                    <span>Time Limit</span>
+                  </Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <Label htmlFor="dark-self-hours" className="text-xs text-muted-foreground">Hours</Label>
+                      <Input 
+                        id="dark-self-hours" 
+                        type="number" 
+                        value={taskHours} 
+                        onChange={e => setTaskHours(Math.max(0, Number(e.target.value)))} 
+                        min="0"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="dark-self-minutes" className="text-xs text-muted-foreground">Minutes</Label>
+                      <Input 
+                        id="dark-self-minutes" 
+                        type="number" 
+                        value={taskMinutes} 
+                        onChange={e => setTaskMinutes(Math.max(0, Number(e.target.value)))} 
+                        min="0"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="dark-self-seconds" className="text-xs text-muted-foreground">Seconds</Label>
+                      <Input 
+                        id="dark-self-seconds" 
+                        type="number" 
+                        value={taskSeconds} 
+                        onChange={e => setTaskSeconds(Math.max(0, Number(e.target.value)))} 
+                        min="0"
+                      />
+                    </div>
                   </div>
-                ))}
-                {darkSelfTasks.length === 0 && <p className="text-xs text-muted-foreground text-center pt-2">Add at least one task to start the challenge.</p>}
-              </div>
-            </div>
+                  <p className="text-xs text-muted-foreground">Choose a total time of at least 5 seconds.</p>
+                </div>
+                 <div className="space-y-4">
+                  <Label className="flex items-center gap-2 font-medium">
+                    <ListChecks className="h-5 w-5" />
+                    <span>Tasks to Complete</span>
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={newTask}
+                      onChange={(e) => setNewTask(e.target.value)}
+                      placeholder="e.g., 'Meditate for 10 minutes'"
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddTask(); }}}
+                    />
+                    <Button type="button" onClick={handleAddTask}><PlusCircle /></Button>
+                  </div>
+                  <div className="space-y-2">
+                    {darkSelfTasks.map((task, index) => (
+                      <div key={index} className="flex items-center justify-between bg-background p-2 rounded-md">
+                        <p className="text-sm">{task}</p>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                          onClick={() => handleDeleteTask(index)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                    {darkSelfTasks.length === 0 && <p className="text-xs text-muted-foreground text-center pt-2">Add at least one task to start the challenge.</p>}
+                  </div>
+                </div>
+              </TabsContent>
+              <TabsContent value="Commitment Challenge" className="space-y-6 pt-4">
+                <p className="text-sm text-muted-foreground">Commit to starting a task. A button will appear when it's time. Click it before the grace period ends to win.</p>
+                <div className="space-y-2">
+                  <Label htmlFor="commitment-time">Commitment Time (minutes)</Label>
+                  <Input 
+                    id="commitment-time" 
+                    type="number" 
+                    value={commitmentMinutes} 
+                    onChange={e => setCommitmentMinutes(Math.max(1, Number(e.target.value)))} 
+                    min="1"
+                  />
+                  <p className="text-xs text-muted-foreground">Time until you must start your task.</p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="grace-time">Grace Period (minutes)</Label>
+                  <Input 
+                    id="grace-time" 
+                    type="number" 
+                    value={graceMinutes} 
+                    onChange={e => setGraceMinutes(Math.max(1, Number(e.target.value)))} 
+                    min="1"
+                  />
+                   <p className="text-xs text-muted-foreground">Extra time to press the button after the commitment time.</p>
+                </div>
+              </TabsContent>
+            </Tabs>
           </div>
         )}
       </CardContent>
