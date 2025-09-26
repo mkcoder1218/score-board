@@ -63,7 +63,6 @@ const formatTimeForTitle = (seconds: number) => {
 export default function DarkSelfChallenge({ settings, onGameEnd, onNewGame }: DarkSelfChallengeProps) {
   const darkSelfMode = settings.darkSelfMode || 'Task Completion';
   const challengeTime = settings.timeLimit || DEFAULT_CHALLENGE_TIME;
-  const commitmentTime = settings.commitmentTime || 0;
   
   const [outcome, setOutcome] = useState<'won' | 'lost' | null>(null);
   const [timeLeft, setTimeLeft] = useState(challengeTime);
@@ -85,15 +84,14 @@ export default function DarkSelfChallenge({ settings, onGameEnd, onNewGame }: Da
 
   // Effect to manage the document title
   useEffect(() => {
-    const originalTitle = document.title;
     if (outcome) {
-        document.title = originalTitle;
+        document.title = ORIGINAL_TITLE;
     } else {
         document.title = `${formatTimeForTitle(timeLeft)} | ${ORIGINAL_TITLE}`;
     }
     
     return () => {
-        document.title = originalTitle;
+        document.title = ORIGINAL_TITLE;
     };
   }, [timeLeft, outcome]);
 
@@ -107,11 +105,16 @@ export default function DarkSelfChallenge({ settings, onGameEnd, onNewGame }: Da
     }
 
     const timer = setInterval(() => {
+      if (gameEndedRef.current) {
+        clearInterval(timer);
+        return;
+      }
       if (endTimeRef.current) {
         const remaining = endTimeRef.current - Date.now();
         if (remaining <= 0) {
           setTimeLeft(0);
           setOutcome('lost');
+          clearInterval(timer);
         } else {
           setTimeLeft(remaining / 1000);
         }
@@ -215,7 +218,7 @@ export default function DarkSelfChallenge({ settings, onGameEnd, onNewGame }: Da
                     <div className="w-full space-y-4 text-center">
                         <p className="text-lg font-medium">Grace period! Press the button now!</p>
                         <Progress value={graceProgress} className="w-full h-4" />
-                        <p className="font-mono text-2xl font-bold">{timeLeft.toFixed(2)}s</p>
+                        <p className="font-mono text-4xl font-bold">{formatTime(timeLeft)}</p>
                         <Button onClick={handleWin} className="w-full h-20 text-2xl font-bold font-headline transform transition-transform hover:scale-105">
                             <Zap className="mr-4 h-8 w-8" /> I'M STARTING NOW!
                         </Button>
