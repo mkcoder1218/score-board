@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import type { GameResult } from '@/lib/types';
-import * as storage from '@/lib/storage';
+import { getHistory, clearHistory } from '@/lib/storage';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableCaption } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -20,17 +20,24 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Card } from '@/components/ui/card';
+import { useAuth, useFirestore } from '@/firebase';
 
 export function GameHistoryClient() {
+  const { user } = useAuth();
+  const db = useFirestore();
   const [history, setHistory] = useState<GameResult[]>([]);
   
   useEffect(() => {
-    setHistory(storage.getHistory());
-  }, []);
+    if (user && db) {
+      getHistory(db, user.uid).then(setHistory);
+    }
+  }, [user, db]);
 
-  const handleClearHistory = () => {
-    storage.clearHistory();
-    setHistory([]);
+  const handleClearHistory = async () => {
+    if (user && db) {
+      await clearHistory(db, user.uid);
+      setHistory([]);
+    }
   };
   
   const getBadgeVariant = (mode: string) => {
@@ -46,7 +53,7 @@ export function GameHistoryClient() {
     <Card className="space-y-6 p-6">
        <AlertDialog>
         <AlertDialogTrigger asChild>
-          <Button variant="destructive" disabled={history.length === 0}>
+          <Button variant="destructive" disabled={history.length === 0 || !user}>
             <Trash2 className="mr-2 h-4 w-4" /> Clear All History
           </Button>
         </AlertDialogTrigger>
@@ -65,7 +72,8 @@ export function GameHistoryClient() {
       </AlertDialog>
       
       <Table>
-        {history.length === 0 && <TableCaption>No game history yet. Play a game to see it here!</TableCaption>}
+        {!user && <TableCaption>Please log in to see your game history.</TableCaption>}
+        {user && history.length === 0 && <TableCaption>No game history yet. Play a game to see it here!</TableCaption>}
         <TableHeader>
           <TableRow>
             <TableHead>Date</TableHead>

@@ -1,5 +1,5 @@
 export type Player = {
-  id: string;
+  id: string; // This will now be the Firebase User UID
   name: string;
 };
 
@@ -19,10 +19,11 @@ export type GameSettings = {
 };
 
 export type GameResult = {
-  id: string;
+  id: string; // Firestore document ID
   mode: GameMode;
   players: Player[];
   winner: Player | { id: 'dark-self'; name: 'Dark Self' } | null;
   scores?: { playerId: string; score: number }[];
   date: string; // ISO string
+  userId: string; // UID of the user who played the game
 };

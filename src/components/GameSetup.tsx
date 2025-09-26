@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -6,7 +5,7 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { Player, GameMode, GameSettings, DarkSelfMode } from '@/lib/types';
-import * as storage from '@/lib/storage';
+import { getHistory } from '@/lib/storage';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,6 +15,8 @@ import { Switch } from '@/components/ui/switch';
 import { UserPlus, Trash2, Users, Timer as TimerIcon, Shield, Moon, ListChecks, PlusCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useAuth, useFirestore, useCollection } from '@/firebase';
+import { collection, doc, writeBatch, onSnapshot } from 'firebase/firestore';
 
 const formSchema = z.object({
   newPlayerName: z.string().min(1, 'Player name cannot be empty.').max(20, 'Player name is too long.'),
@@ -26,6 +27,9 @@ interface GameSetupProps {
 }
 
 export default function GameSetup({ onStartGame }: GameSetupProps) {
+  const { user } = useAuth();
+  const db = useFirestore();
+  
   const [players, setPlayers] = useState<Player[]>([]);
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
   const [gameMode, setGameMode] = useState<GameMode>('Score Counter');
@@ -55,53 +59,69 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
     resolver: zodResolver(formSchema),
     defaultValues: { newPlayerName: '' },
   });
-
+  
+  // Set up a listener for players collection
   useEffect(() => {
-    const storedPlayers = storage.getPlayers();
-    setPlayers(storedPlayers);
-    if(storedPlayers.length > 0) {
-      setSelectedPlayerIds(storedPlayers.slice(0, 1).map(p => p.id));
-    }
-  }, []);
-
-  useEffect(() => {
-    if (gameMode === 'Dark Self Challenge' && selectedPlayerIds.length === 1) {
-      const history = storage.getHistory();
-      const currentPlayerId = selectedPlayerIds[0];
-      const playerInGames = history.filter(game => 
-        game.mode === 'Dark Self Challenge' && game.players.some(p => p.id === currentPlayerId)
-      );
-      
-      let playerWins = 0;
-      let darkSelfWins = 0;
-
-      playerInGames.forEach(game => {
-        if (game.winner?.id === currentPlayerId) {
-          playerWins++;
-        } else if (game.winner?.id === 'dark-self') {
-          darkSelfWins++;
+    if (!user || !db) return;
+    const playersCollectionRef = collection(db, 'users', user.uid, 'players');
+    const unsubscribe = onSnapshot(playersCollectionRef, (snapshot) => {
+        const playersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Player));
+        setPlayers(playersData);
+        if (playersData.length > 0 && selectedPlayerIds.length === 0) {
+            // setSelectedPlayerIds(playersData.slice(0, 1).map(p => p.id));
         }
-      });
-      
-      setDarkSelfStats({ playerWins, darkSelfWins });
+    });
+    return () => unsubscribe();
+  }, [user, db]);
+
+
+  useEffect(() => {
+    if (gameMode === 'Dark Self Challenge' && selectedPlayerIds.length === 1 && user && db) {
+        const historyCollectionRef = collection(db, 'users', user.uid, 'history');
+        const unsubscribe = onSnapshot(historyCollectionRef, (querySnapshot) => {
+            const history = querySnapshot.docs.map(doc => doc.data());
+            const currentPlayerId = selectedPlayerIds[0];
+            const playerInGames = history.filter(game => 
+                game.mode === 'Dark Self Challenge' && game.players.some((p: Player) => p.id === currentPlayerId)
+            );
+
+            let playerWins = 0;
+            let darkSelfWins = 0;
+
+            playerInGames.forEach(game => {
+                if (game.winner?.id === currentPlayerId) {
+                    playerWins++;
+                } else if (game.winner?.id === 'dark-self') {
+                    darkSelfWins++;
+                }
+            });
+            
+            setDarkSelfStats({ playerWins, darkSelfWins });
+        });
+        return () => unsubscribe();
     } else {
       setDarkSelfStats(null);
     }
-  }, [gameMode, selectedPlayerIds]);
+  }, [gameMode, selectedPlayerIds, user, db]);
 
-  const handleAddPlayer = (data: { newPlayerName: string }) => {
-    const newPlayer: Player = { id: Date.now().toString(), name: data.newPlayerName.trim() };
-    const updatedPlayers = [...players, newPlayer];
-    setPlayers(updatedPlayers);
-    storage.savePlayers(updatedPlayers);
+  const handleAddPlayer = async (data: { newPlayerName: string }) => {
+    if (!user || !db) return;
+    const newPlayerName = data.newPlayerName.trim();
+    // Using player name as ID for simplicity here, but can be a generated ID
+    const newPlayerRef = doc(db, 'users', user.uid, 'players', newPlayerName);
+    const batch = writeBatch(db);
+    batch.set(newPlayerRef, { name: newPlayerName });
+    await batch.commit();
     form.reset();
   };
 
-  const handleDeletePlayer = (id: string) => {
-    const updatedPlayers = players.filter(p => p.id !== id);
-    setPlayers(updatedPlayers);
-    storage.savePlayers(updatedPlayers);
-    setSelectedPlayerIds(ids => ids.filter(playerId => playerId !== id));
+  const handleDeletePlayer = async (playerName: string) => {
+    if (!user || !db) return;
+    const playerDocRef = doc(db, 'users', user.uid, 'players', playerName);
+    const batch = writeBatch(db);
+    batch.delete(playerDocRef);
+    await batch.commit();
+    setSelectedPlayerIds(ids => ids.filter(id => id !== playerName));
   };
   
   const togglePlayerSelection = (id: string) => {
@@ -109,6 +129,14 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
       prev.includes(id) ? prev.filter(pId => pId !== id) : [...prev, id]
     );
   };
+
+  useEffect(() => {
+    if (user) {
+        const defaultPlayer: Player = { id: user.uid, name: user.displayName || user.email || 'You' };
+        setPlayers(p => p.find(pl => pl.id === defaultPlayer.id) ? p : [defaultPlayer, ...p]);
+        setSelectedPlayerIds([defaultPlayer.id]);
+    }
+  }, [user]);
 
   const handleAddTask = () => {
     if (newTask.trim()) {
@@ -185,27 +213,21 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
       </CardHeader>
       <CardContent className="space-y-8">
         <div className="space-y-4">
-          <Label htmlFor="new-player" className="flex items-center gap-2 font-bold"><UserPlus /> Add New Player</Label>
-          <form onSubmit={form.handleSubmit(handleAddPlayer)} className="flex gap-2">
-            <Input id="new-player" placeholder="Enter player name" {...form.register('newPlayerName')} />
-            <Button type="submit">Add</Button>
-          </form>
-          {form.formState.errors.newPlayerName && <p className="text-sm text-destructive">{form.formState.errors.newPlayerName.message}</p>}
-        </div>
-
-        <div className="space-y-4">
           <Label className="flex items-center gap-2 font-bold"><Users /> Select Players</Label>
           <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
-            {players.length > 0 ? players.map(player => (
+            {players.map(player => (
               <div key={player.id} 
                    className={`flex items-center justify-between p-3 rounded-md cursor-pointer transition-colors ${selectedPlayerIds.includes(player.id) ? 'bg-primary/20 ring-2 ring-primary' : 'bg-secondary'}`}
                    onClick={() => togglePlayerSelection(player.id)}>
                 <span className="font-medium">{player.name}</span>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0" onClick={(e) => {e.stopPropagation(); handleDeletePlayer(player.id);}}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                {/* No deleting the main user player */}
+                {player.id !== user?.uid && (
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0" onClick={(e) => {e.stopPropagation(); handleDeletePlayer(player.id);}}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                )}
               </div>
-            )) : <p className="text-muted-foreground text-sm">No players added yet. Add some to get started!</p>}
+            ))}
           </div>
         </div>
         
@@ -386,8 +408,7 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="grace-minutes" className="text-xs text-muted-foreground">Minutes</Label>
-                      <Input 
+                      <Label htmlFor="grace-minutes" className="text-xs text-muted-foreground">Minutes</Label>                      <Input 
                         id="grace-minutes" 
                         type="number" 
                         value={graceMinutes} 
@@ -414,10 +435,8 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
         )}
       </CardContent>
       <CardFooter>
-        <Button onClick={handleStart} className="w-full text-lg py-6 font-bold font-headline">Start Game</Button>
+        <Button onClick={handleStart} className="w-full text-lg py-6 font-bold font-headline" disabled={!user}>Start Game</Button>
       </CardFooter>
     </Card>
   );
 }
-
-    
