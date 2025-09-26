@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { GoogleAuthProvider, signInWithPopup, User } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
@@ -9,6 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Chrome } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Terminal } from 'lucide-react';
 
 export default function LoginPage() {
   const { user, loading } = useAuth();
@@ -16,6 +19,13 @@ export default function LoginPage() {
   const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
+  const [hostname, setHostname] = useState('');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setHostname(window.location.hostname);
+    }
+  }, []);
 
   useEffect(() => {
     if (!loading && user) {
@@ -62,7 +72,18 @@ export default function LoginPage() {
           <CardTitle className="text-2xl font-headline">Welcome</CardTitle>
           <CardDescription>Sign in to track your game history.</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {hostname && (
+            <Alert>
+              <Terminal className="h-4 w-4" />
+              <AlertTitle>Action Required!</AlertTitle>
+              <AlertDescription>
+                To fix the sign-in error, add the following domain to your Firebase project's authorized domains:
+                <br />
+                <strong className="text-foreground bg-muted px-2 py-1 rounded mt-2 inline-block">{hostname}</strong>
+              </AlertDescription>
+            </Alert>
+          )}
           <Button onClick={handleSignIn} className="w-full" >
             <Chrome className="mr-2 h-4 w-4" /> Sign in with Google
           </Button>
