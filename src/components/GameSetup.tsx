@@ -37,8 +37,14 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
   const [taskHours, setTaskHours] = useState(0);
   const [taskMinutes, setTaskMinutes] = useState(10);
   const [taskSeconds, setTaskSeconds] = useState(0);
+  
+  const [commitmentHours, setCommitmentHours] = useState(0);
   const [commitmentMinutes, setCommitmentMinutes] = useState(10);
+  const [commitmentSeconds, setCommitmentSeconds] = useState(0);
+  const [graceHours, setGraceHours] = useState(0);
   const [graceMinutes, setGraceMinutes] = useState(2);
+  const [graceSeconds, setGraceSeconds] = useState(0);
+
   const [darkSelfTasks, setDarkSelfTasks] = useState<string[]>([]);
   const [newTask, setNewTask] = useState('');
   const [darkSelfStats, setDarkSelfStats] = useState<{ playerWins: number; darkSelfWins: number } | null>(null);
@@ -54,7 +60,7 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
     const storedPlayers = storage.getPlayers();
     setPlayers(storedPlayers);
     if(storedPlayers.length > 0) {
-      setSelectedPlayerIds(storedPlayers.slice(0, 2).map(p => p.id));
+      setSelectedPlayerIds(storedPlayers.slice(0, 1).map(p => p.id));
     }
   }, []);
 
@@ -142,10 +148,10 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
           settings.timeLimit = totalSeconds;
           settings.tasks = darkSelfTasks;
         } else { // Commitment Challenge
-            const commitmentSecs = commitmentMinutes * 60;
-            const graceSecs = graceMinutes * 60;
-            if(commitmentSecs <= 0 || graceSecs <=0) {
-              toast({ variant: 'destructive', title: 'Invalid Time', description: 'Commitment and grace times must be positive.' });
+            const commitmentSecs = (commitmentHours * 3600) + (commitmentMinutes * 60) + commitmentSeconds;
+            const graceSecs = (graceHours * 3600) + (graceMinutes * 60) + graceSeconds;
+            if(commitmentSecs <= 0 || graceSecs <= 0) {
+              toast({ variant: 'destructive', title: 'Invalid Time', description: 'Commitment and grace times must be positive and non-zero.' });
               return;
             }
             settings.commitmentTime = commitmentSecs;
@@ -331,25 +337,75 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
               <TabsContent value="Commitment Challenge" className="space-y-6 pt-4">
                 <p className="text-sm text-muted-foreground">Commit to starting a task. A button will appear when it's time. Click it before the grace period ends to win.</p>
                 <div className="space-y-2">
-                  <Label htmlFor="commitment-time">Time to start (minutes)</Label>
-                  <Input 
-                    id="commitment-time" 
-                    type="number" 
-                    value={commitmentMinutes} 
-                    onChange={e => setCommitmentMinutes(Math.max(1, Number(e.target.value)))} 
-                    min="1"
-                  />
+                  <Label>Time to start</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <Label htmlFor="commitment-hours" className="text-xs text-muted-foreground">Hours</Label>
+                      <Input 
+                        id="commitment-hours" 
+                        type="number" 
+                        value={commitmentHours} 
+                        onChange={e => setCommitmentHours(Math.max(0, Number(e.target.value)))} 
+                        min="0"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="commitment-minutes" className="text-xs text-muted-foreground">Minutes</Label>
+                      <Input 
+                        id="commitment-minutes" 
+                        type="number" 
+                        value={commitmentMinutes} 
+                        onChange={e => setCommitmentMinutes(Math.max(0, Number(e.target.value)))} 
+                        min="0"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="commitment-seconds" className="text-xs text-muted-foreground">Seconds</Label>
+                      <Input 
+                        id="commitment-seconds" 
+                        type="number" 
+                        value={commitmentSeconds} 
+                        onChange={e => setCommitmentSeconds(Math.max(0, Number(e.target.value)))} 
+                        min="0"
+                      />
+                    </div>
+                  </div>
                   <p className="text-xs text-muted-foreground">Time until you must start your task.</p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="grace-time">Grace period (minutes)</Label>
-                  <Input 
-                    id="grace-time" 
-                    type="number" 
-                    value={graceMinutes} 
-                    onChange={e => setGraceMinutes(Math.max(1, Number(e.target.value)))} 
-                    min="1"
-                  />
+                  <Label>Grace period</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <Label htmlFor="grace-hours" className="text-xs text-muted-foreground">Hours</Label>
+                      <Input 
+                        id="grace-hours" 
+                        type="number" 
+                        value={graceHours} 
+                        onChange={e => setGraceHours(Math.max(0, Number(e.target.value)))} 
+                        min="0"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="grace-minutes" className="text-xs text-muted-foreground">Minutes</Label>
+                      <Input 
+                        id="grace-minutes" 
+                        type="number" 
+                        value={graceMinutes} 
+                        onChange={e => setGraceMinutes(Math.max(0, Number(e.target.value)))} 
+                        min="0"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="grace-seconds" className="text-xs text-muted-foreground">Seconds</Label>
+                      <Input 
+                        id="grace-seconds" 
+                        type="number" 
+                        value={graceSeconds} 
+                        onChange={e => setGraceSeconds(Math.max(0, Number(e.target.value)))} 
+                        min="0"
+                      />
+                    </div>
+                  </div>
                    <p className="text-xs text-muted-foreground">Extra time to press the button after the commitment time.</p>
                 </div>
               </TabsContent>
