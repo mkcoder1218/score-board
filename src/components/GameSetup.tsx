@@ -5,7 +5,6 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { Player, GameMode, GameSettings, DarkSelfMode } from '@/lib/types';
-import { getHistory } from '@/lib/storage';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,8 +14,8 @@ import { Switch } from '@/components/ui/switch';
 import { UserPlus, Trash2, Users, Timer as TimerIcon, Shield, Moon, ListChecks, PlusCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useAuth, useFirestore, useCollection } from '@/firebase';
-import { collection, doc, writeBatch, onSnapshot, setDoc } from 'firebase/firestore';
+import { useAuth, useFirestore } from '@/firebase';
+import { collection, doc, writeBatch, onSnapshot, setDoc, addDoc, deleteDoc } from 'firebase/firestore';
 
 const formSchema = z.object({
   newPlayerName: z.string().min(1, 'Player name cannot be empty.').max(20, 'Player name is too long.'),
@@ -71,6 +70,8 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
             const defaultPlayerExists = playersData.some(p => p.id === user.uid);
             if(defaultPlayerExists) {
                 setSelectedPlayerIds([user.uid]);
+            } else if (playersData.length > 0) {
+              setSelectedPlayerIds([playersData[0].id]);
             }
         }
     });
@@ -120,16 +121,31 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
   const handleAddPlayer = async (data: { newPlayerName: string }) => {
     if (!user || !db) return;
     const newPlayerName = data.newPlayerName.trim();
-    // Using player name as ID for simplicity here, but a generated ID is better for production
-    const newPlayerRef = doc(db, 'users', user.uid, 'players', newPlayerName);
-    await setDoc(newPlayerRef, { name: newPlayerName });
+    if (players.some(p => p.name.toLowerCase() === newPlayerName.toLowerCase())) {
+        toast({
+            variant: "destructive",
+            title: "Player exists",
+            description: "A player with that name already exists.",
+        });
+        return;
+    }
+    const playersCollectionRef = collection(db, 'users', user.uid, 'players');
+    await addDoc(playersCollectionRef, { name: newPlayerName });
     form.reset();
   };
 
   const handleDeletePlayer = async (playerId: string) => {
     if (!user || !db) return;
+    if (playerId === user.uid) {
+        toast({
+            variant: "destructive",
+            title: "Cannot delete self",
+            description: "You cannot delete your own player profile.",
+        });
+        return;
+    }
     const playerDocRef = doc(db, 'users', user.uid, 'players', playerId);
-    await writeBatch(db).delete(playerDocRef).commit();
+    await deleteDoc(playerDocRef);
     setSelectedPlayerIds(ids => ids.filter(id => id !== playerId));
   };
   
@@ -156,6 +172,11 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
 
   const handleStart = () => {
     const selectedPlayers = players.filter(p => selectedPlayerIds.includes(p.id));
+
+    if (selectedPlayers.length === 0) {
+        toast({ variant: 'destructive', title: 'No Players Selected', description: 'Please select at least one player to start.' });
+        return;
+    }
 
     let settings: GameSettings = {
       mode: gameMode,
@@ -255,7 +276,7 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
           <RadioGroup value={gameMode} onValueChange={(value) => {
               const newMode = value as GameMode;
               setGameMode(newMode);
-              if (newMode === 'Dark Self Challenge' && user) {
+              if (newMode === 'Dark Self Challenge' && user && selectedPlayerIds.length !== 1) {
                   setSelectedPlayerIds([user.uid]);
               }
           }} className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -465,3 +486,5 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
     </Card>
   );
 }
+
+    
