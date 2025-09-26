@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { GoogleAuthProvider, signInWithPopup, User } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
-import { useAuth, useFirestore } from '@/firebase';
+import { useAuth, useFirebaseAuth, useFirestore } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Chrome } from 'lucide-react';
@@ -12,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 
 export default function LoginPage() {
   const { user, loading } = useAuth();
-  const auth = useAuth()._auth; // A bit of a hack to get the auth instance
+  const auth = useFirebaseAuth();
   const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
