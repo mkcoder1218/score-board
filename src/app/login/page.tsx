@@ -22,6 +22,8 @@ export default function LoginPage() {
   const [hostname, setHostname] = useState('');
 
   useEffect(() => {
+    // This code runs only on the client, after the component has mounted.
+    // This is the correct way to access `window`.
     if (typeof window !== 'undefined') {
       setHostname(window.location.hostname);
     }
