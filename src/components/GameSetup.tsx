@@ -16,7 +16,7 @@ import { UserPlus, Trash2, Users, Timer as TimerIcon, Shield, Moon, ListChecks, 
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuth, useFirestore, useCollection } from '@/firebase';
-import { collection, doc, writeBatch, onSnapshot } from 'firebase/firestore';
+import { collection, doc, writeBatch, onSnapshot, setDoc } from 'firebase/firestore';
 
 const formSchema = z.object({
   newPlayerName: z.string().min(1, 'Player name cannot be empty.').max(20, 'Player name is too long.'),
@@ -67,11 +67,24 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
     const unsubscribe = onSnapshot(playersCollectionRef, (snapshot) => {
         const playersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Player));
         setPlayers(playersData);
-        if (playersData.length > 0 && selectedPlayerIds.length === 0) {
-            // setSelectedPlayerIds(playersData.slice(0, 1).map(p => p.id));
+        if (playersData.length > 0 && selectedPlayerIds.length === 0 && user) {
+            const defaultPlayerExists = playersData.some(p => p.id === user.uid);
+            if(defaultPlayerExists) {
+                setSelectedPlayerIds([user.uid]);
+            }
         }
     });
     return () => unsubscribe();
+  }, [user, db]);
+
+  useEffect(() => {
+    if (user && db) {
+        const defaultPlayer: Player = { id: user.uid, name: user.displayName || user.email || 'You' };
+        const userPlayerRef = doc(db, 'users', user.uid, 'players', user.uid);
+        // Ensure the default user player exists in the database
+        setDoc(userPlayerRef, { name: defaultPlayer.name }, { merge: true });
+        setSelectedPlayerIds([user.uid]);
+    }
   }, [user, db]);
 
 
@@ -107,36 +120,28 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
   const handleAddPlayer = async (data: { newPlayerName: string }) => {
     if (!user || !db) return;
     const newPlayerName = data.newPlayerName.trim();
-    // Using player name as ID for simplicity here, but can be a generated ID
+    // Using player name as ID for simplicity here, but a generated ID is better for production
     const newPlayerRef = doc(db, 'users', user.uid, 'players', newPlayerName);
-    const batch = writeBatch(db);
-    batch.set(newPlayerRef, { name: newPlayerName });
-    await batch.commit();
+    await setDoc(newPlayerRef, { name: newPlayerName });
     form.reset();
   };
 
-  const handleDeletePlayer = async (playerName: string) => {
+  const handleDeletePlayer = async (playerId: string) => {
     if (!user || !db) return;
-    const playerDocRef = doc(db, 'users', user.uid, 'players', playerName);
-    const batch = writeBatch(db);
-    batch.delete(playerDocRef);
-    await batch.commit();
-    setSelectedPlayerIds(ids => ids.filter(id => id !== playerName));
+    const playerDocRef = doc(db, 'users', user.uid, 'players', playerId);
+    await writeBatch(db).delete(playerDocRef).commit();
+    setSelectedPlayerIds(ids => ids.filter(id => id !== playerId));
   };
   
   const togglePlayerSelection = (id: string) => {
+    if (gameMode === 'Dark Self Challenge') {
+        setSelectedPlayerIds([id]);
+        return;
+    }
     setSelectedPlayerIds(prev =>
       prev.includes(id) ? prev.filter(pId => pId !== id) : [...prev, id]
     );
   };
-
-  useEffect(() => {
-    if (user) {
-        const defaultPlayer: Player = { id: user.uid, name: user.displayName || user.email || 'You' };
-        setPlayers(p => p.find(pl => pl.id === defaultPlayer.id) ? p : [defaultPlayer, ...p]);
-        setSelectedPlayerIds([defaultPlayer.id]);
-    }
-  }, [user]);
 
   const handleAddTask = () => {
     if (newTask.trim()) {
@@ -220,7 +225,6 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
                    className={`flex items-center justify-between p-3 rounded-md cursor-pointer transition-colors ${selectedPlayerIds.includes(player.id) ? 'bg-primary/20 ring-2 ring-primary' : 'bg-secondary'}`}
                    onClick={() => togglePlayerSelection(player.id)}>
                 <span className="font-medium">{player.name}</span>
-                {/* No deleting the main user player */}
                 {player.id !== user?.uid && (
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0" onClick={(e) => {e.stopPropagation(); handleDeletePlayer(player.id);}}>
                       <Trash2 className="h-4 w-4" />
@@ -230,10 +234,31 @@ export default function GameSetup({ onStartGame }: GameSetupProps) {
             ))}
           </div>
         </div>
+
+        <div className="space-y-4">
+            <Label className="flex items-center gap-2 font-bold"><UserPlus /> Add New Player</Label>
+            <form onSubmit={form.handleSubmit(handleAddPlayer)} className="flex gap-2">
+                <div className="flex-grow">
+                <Input
+                    {...form.register('newPlayerName')}
+                    placeholder="Enter player name"
+                    className={form.formState.errors.newPlayerName ? 'border-destructive' : ''}
+                />
+                {form.formState.errors.newPlayerName && <p className="text-destructive text-sm mt-1">{form.formState.errors.newPlayerName.message}</p>}
+                </div>
+                <Button type="submit">Add</Button>
+            </form>
+        </div>
         
         <div className="space-y-4">
           <Label className="font-bold">Game Mode</Label>
-          <RadioGroup value={gameMode} onValueChange={(value) => setGameMode(value as GameMode)} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <RadioGroup value={gameMode} onValueChange={(value) => {
+              const newMode = value as GameMode;
+              setGameMode(newMode);
+              if (newMode === 'Dark Self Challenge' && user) {
+                  setSelectedPlayerIds([user.uid]);
+              }
+          }} className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {['Score Counter', 'First-Click Wins', 'Dark Self Challenge'].map(mode => (
               <Label key={mode} className={`flex flex-col items-center justify-center p-4 rounded-lg border-2 cursor-pointer transition-colors ${gameMode === mode ? 'border-primary bg-primary/10' : 'border-border hover:bg-accent/50'}`}>
                 <RadioGroupItem value={mode} id={mode} className="sr-only" />
