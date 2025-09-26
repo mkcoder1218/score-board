@@ -1,7 +1,6 @@
-import { collection, addDoc, getDocs, query, where, orderBy, writeBatch, Timestamp, Firestore } from 'firebase/firestore';
-import type { Player, GameResult } from '@/lib/types';
+import { collection, addDoc, getDocs, query, orderBy, writeBatch, Firestore } from 'firebase/firestore';
+import type { GameResult } from '@/lib/types';
 
-// New Firestore functions
 
 export const addGameToHistory = async (db: Firestore, userId: string, result: Omit<GameResult, 'id' | 'userId' | 'date'>) => {
   if (!userId) throw new Error('User not authenticated');
@@ -38,5 +37,3 @@ export const clearHistory = async (db: Firestore, userId: string) => {
   
   await batch.commit();
 };
-
-    

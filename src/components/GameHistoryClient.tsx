@@ -61,7 +61,7 @@ export function GameHistoryClient() {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete all your game history.
+              This action cannot be undone. This will permanently delete all your game history from Firestore.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
